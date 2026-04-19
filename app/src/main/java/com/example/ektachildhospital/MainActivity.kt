@@ -393,16 +393,58 @@ fun MainNavigation(role: String, name: String, onLogout: () -> Unit) {
 }
 
 @Composable
+fun RefreshButton(
+    modifier: Modifier = Modifier,
+    onRefresh: () -> Unit,
+    color: Color = Primary
+) {
+    var isEnabled by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    IconButton(
+        onClick = {
+            if (isEnabled) {
+                isEnabled = false
+                onRefresh()
+                scope.launch {
+                    delay(5000)
+                    isEnabled = true
+                }
+            }
+        },
+        enabled = isEnabled,
+        modifier = modifier
+    ) {
+        Icon(
+            imageVector = Icons.Default.Refresh,
+            contentDescription = "Refresh",
+            tint = if (isEnabled) color else color.copy(alpha = 0.38f)
+        )
+    }
+}
+
+@Composable
 fun HomeScreen(name: String, onNavigateToTab: (Int) -> Unit) {
     var appointments by remember { mutableStateOf<List<Appointment>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
     val appointmentRepository = remember { SupabaseAppointmentRepository() }
+    val scope = rememberCoroutineScope()
+
+    fun refreshData() {
+        scope.launch {
+            isLoading = true
+            try {
+                appointments = appointmentRepository.getMyAppointments()
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                isLoading = false
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
-        try {
-            appointments = appointmentRepository.getMyAppointments()
-        } catch (e: Exception) {
-            // Handle error
-        }
+        refreshData()
     }
 
     val nextAppointment = appointments.firstOrNull { it.status.equals("confirmed", ignoreCase = true) }
@@ -430,7 +472,7 @@ fun HomeScreen(name: String, onNavigateToTab: (Int) -> Unit) {
         }
 
         item {
-            NextAppointmentCard(nextAppointment)
+            NextAppointmentCard(nextAppointment, onRefresh = { refreshData() })
         }
 
         item {
@@ -440,7 +482,7 @@ fun HomeScreen(name: String, onNavigateToTab: (Int) -> Unit) {
 }
 
 @Composable
-fun NextAppointmentCard(appointment: Appointment?) {
+fun NextAppointmentCard(appointment: Appointment?, onRefresh: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -464,18 +506,25 @@ fun NextAppointmentCard(appointment: Appointment?) {
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Surface(
-                        color = Color.White.copy(alpha = 0.2f),
-                        shape = RoundedCornerShape(percent = 50)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "NEXT APPOINTMENT",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            letterSpacing = 1.sp
-                        )
+                        Surface(
+                            color = Color.White.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(percent = 50)
+                        ) {
+                            Text(
+                                text = "NEXT APPOINTMENT",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        RefreshButton(onRefresh = onRefresh, color = Color.White)
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -614,17 +663,26 @@ fun SchedulesScreen() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(
-                "My Schedule",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = OnBackground
-            )
-            Text(
-                "Browse doctors, request appointments, and track your bookings.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Secondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "My Schedule",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OnBackground
+                    )
+                    Text(
+                        "Browse doctors and track bookings.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Secondary
+                    )
+                }
+                RefreshButton(onRefresh = { refreshData() })
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -800,33 +858,81 @@ fun StatusBadge(status: String) {
 @Composable
 fun VisitsScreen() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val appointmentRepository = remember { SupabaseAppointmentRepository() }
+    var appointments by remember { mutableStateOf<List<Appointment>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    fun refreshVisits() {
+        scope.launch {
+            isLoading = true
+            try {
+                appointments = appointmentRepository.getMyAppointments()
+                    .filter { it.status.lowercase() != "pending" }
+                    .sortedByDescending { it.createdAt ?: it.date }
+            } catch (e: Exception) {
+                android.util.Log.e("VisitsScreen", "Error loading visits", e)
+                android.widget.Toast.makeText(context, "Failed to load visits: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshVisits()
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Text(
-                "Medical History",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.ExtraBold,
-                color = OnBackground
-            )
-            Text(
-                "Your past consultations and clinical records.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = Secondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Medical History",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = OnBackground
+                    )
+                    Text(
+                        "Your past clinical records.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Secondary
+                    )
+                }
+                RefreshButton(onRefresh = { refreshVisits() })
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
-        item {
-            RealVisitsSection(
-                appointmentRepository = appointmentRepository,
-                onError = { message ->
-                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-                }
-            )
+
+        if (isLoading) {
+            items(3) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.LightGray.copy(alpha = 0.2f))
+                )
+            }
+        } else if (appointments.isEmpty()) {
+            item {
+                EmptyStateCard(
+                    title = "No visit history yet",
+                    message = "Your confirmed or rejected appointments will appear here."
+                )
+            }
+        } else {
+            items(appointments) { appointment ->
+                VisitCard(appointment)
+            }
         }
     }
 }
@@ -883,9 +989,15 @@ fun ProfileScreen(name: String, role: String) {
     var showPhoneDialog by remember { mutableStateOf(false) }
     var footerScreen by remember { mutableStateOf<FooterScreen?>(null) }
 
+    fun refreshProfile() {
+        scope.launch {
+            profile = authRepository.getProfile()
+            joinedText = formatJoinedDate(authRepository.getCurrentUser()?.createdAt?.toString())
+        }
+    }
+
     LaunchedEffect(Unit) {
-        profile = authRepository.getProfile()
-        joinedText = formatJoinedDate(authRepository.getCurrentUser()?.createdAt?.toString())
+        refreshProfile()
     }
 
     Column(
@@ -911,18 +1023,25 @@ fun ProfileScreen(name: String, role: String) {
                 )
 
                 Column {
-                    Surface(
-                        color = PrimaryFixed,
-                        shape = RoundedCornerShape(percent = 50)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = "PATIENT PORTAL",
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF001B3D), // on-primary-fixed
-                            letterSpacing = 1.sp
-                        )
+                        Surface(
+                            color = PrimaryFixed,
+                            shape = RoundedCornerShape(percent = 50)
+                        ) {
+                            Text(
+                                text = "PATIENT PORTAL",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF001B3D), // on-primary-fixed
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        RefreshButton(onRefresh = { refreshProfile() })
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -1451,12 +1570,19 @@ fun AdminDashboard() {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        Text(
-            "Admin Dashboard",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Primary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Admin Dashboard",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Primary
+            )
+            RefreshButton(onRefresh = { refreshDashboard() })
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -1555,12 +1681,19 @@ fun AdminAppointmentsScreen() {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            "Manage Appointments",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = Primary
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Manage Appointments",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Primary
+            )
+            RefreshButton(onRefresh = { refreshData() })
+        }
 
         // Date Selector
         LazyRow(
@@ -2058,14 +2191,18 @@ fun DoctorManagementScreen() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Doctors", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Primary)
-            Button(
-                onClick = { showAddDoctorDialog = true },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                RefreshButton(onRefresh = { refreshDoctors() })
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Doctor")
+                Button(
+                    onClick = { showAddDoctorDialog = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Add Doctor")
+                }
             }
         }
 
