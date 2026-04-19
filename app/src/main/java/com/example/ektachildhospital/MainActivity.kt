@@ -54,6 +54,8 @@ import com.example.ektachildhospital.api.Doctor
 import com.example.ektachildhospital.api.Appointment
 import com.example.ektachildhospital.ui.components.ShimmerDoctorCard
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.crashlytics.ktx.crashlytics
+import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
@@ -97,6 +99,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         installSplashScreen()
+
+        // Safety Catch: Disable Crashlytics in debug builds to keep the dashboard clean
+        // It will be automatically enabled in Release builds.
+        Firebase.crashlytics.setCrashlyticsCollectionEnabled(!BuildConfig.DEBUG)
+
         setContent {
             EktaHospitalApp(authRepository)
         }
