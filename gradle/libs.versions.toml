@@ -1,5 +1,5 @@
 [versions]
-agp = "8.2.2"
+agp = "8.8.2"
 kotlin = "1.9.23"
 coreKtx = "1.12.0"
 junit = "4.13.2"
@@ -13,6 +13,11 @@ material = "1.11.0"
 retrofit = "2.9.0"
 okhttp = "4.12.0"
 core-splashscreen = "1.0.1"
+supabase = "2.6.1"
+ktor = "2.3.10"
+kotlinx-serialization = "1.6.3"
+firebase-bom = "33.13.0"
+firebaseCrashlyticsPlugin = "3.0.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -29,6 +34,7 @@ androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-toolin
 androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
@@ -36,8 +42,19 @@ retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", ver
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "core-splashscreen" }
+supabase-bom = { group = "io.github.jan-tennert.supabase", name = "bom", version.ref = "supabase" }
+supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "gotrue-kt", version.ref = "supabase" }
+supabase-compose-auth = { group = "io.github.jan-tennert.supabase", name = "compose-auth", version.ref = "supabase" }
+supabase-realtime = { group = "io.github.jan-tennert.supabase", name = "realtime-kt", version.ref = "supabase" }
+supabase-functions = { group = "io.github.jan-tennert.supabase", name = "functions-kt", version.ref = "supabase" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
+firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashlytics-ktx" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-
+google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebaseCrashlyticsPlugin" }

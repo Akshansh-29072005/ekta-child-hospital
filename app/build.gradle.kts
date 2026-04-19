@@ -1,16 +1,27 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
+    id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+val localProperties = Properties()
+val localPropertiesFile = project.rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.inputStream())
 }
 
 android {
     namespace = "com.example.ektachildhospital"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.ektachildhospital"
         minSdk = 30
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
@@ -18,15 +29,23 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
-        
+
         buildConfigField("String", "BASE_URL", "\"https://api.ektahospital.com/v1/\"")
+        buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty("SUPABASE_ANON_KEY") ?: ""}\"")
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_CLIENT_ID") ?: ""}\"")
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "BASE_URL", "\"https://api-dev.ektahospital.com/v1/\"")
+            buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL") ?: ""}\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty("SUPABASE_ANON_KEY") ?: ""}\"")
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_CLIENT_ID") ?: ""}\"")
         }
         release {
+            buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL") ?: ""}\"")
+            buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProperties.getProperty("SUPABASE_ANON_KEY") ?: ""}\"")
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"${localProperties.getProperty("GOOGLE_CLIENT_ID") ?: ""}\"")
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -64,9 +83,21 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.core.splashscreen)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.crashlytics)
+    implementation(platform(libs.supabase.bom))
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.compose.auth)
+    implementation(libs.supabase.realtime)
+    implementation(libs.supabase.functions)
+    implementation(libs.kotlinx.serialization.json)
+    implementation("io.ktor:ktor-client-cio:2.3.10")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
