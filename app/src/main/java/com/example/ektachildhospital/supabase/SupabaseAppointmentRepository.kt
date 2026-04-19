@@ -3,6 +3,7 @@ package com.example.ektachildhospital.supabase
 import com.example.ektachildhospital.api.AdminStats
 import com.example.ektachildhospital.api.Appointment
 import com.example.ektachildhospital.api.Doctor
+import com.example.ektachildhospital.supabase.Profile
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +86,25 @@ class SupabaseAppointmentRepository {
         rows.map { row -> row.toAppointment(doctorNames) }
     }
 
+    suspend fun getAppointmentsByDate(date: String): List<Appointment> = withContext(Dispatchers.IO) {
+        val rows = client.postgrest["appointments"]
+            .select {
+                filter {
+                    eq("appointment_date", date)
+                }
+            }
+            .decodeList<AppointmentRow>()
+
+        val doctorNames = loadDoctorNames()
+        rows.map { row -> row.toAppointment(doctorNames) }
+    }
+
+    suspend fun getAllDoctors(): List<Doctor> = withContext(Dispatchers.IO) {
+        client.postgrest["doctors"]
+            .select()
+            .decodeList<Doctor>()
+    }
+
     suspend fun bookAppointment(appointment: Appointment): Appointment = withContext(Dispatchers.IO) {
         client.postgrest["appointments"].insert(
             AppointmentInsertRow(
@@ -110,20 +130,26 @@ class SupabaseAppointmentRepository {
     }
 
     suspend fun getAdminStats(): AdminStats = withContext(Dispatchers.IO) {
-        val patients = client.postgrest["profiles"]
-            .select {
-                filter {
-                    eq("role", "patient")
-                }
-            }
-            .decodeList<Profile>()
+        try {
+            // Fetch all profiles to count total patients.
+            // Note: Ensure RLS policies allow the admin to select all profiles.
+            val allProfiles = client.postgrest["profiles"]
+                .select()
+                .decodeList<Profile>()
 
-        val pendingAppointments = getPendingAppointments()
+            // Count profiles where role is 'patient' (case-insensitive)
+            val patientCount = allProfiles.count { it.role.equals("patient", ignoreCase = true) }
 
-        AdminStats(
-            totalPatients = patients.size,
-            pendingAppointments = pendingAppointments.size
-        )
+            val pendingAppointments = getPendingAppointments()
+
+            AdminStats(
+                totalPatients = patientCount,
+                pendingAppointments = pendingAppointments.size
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("AdminDashboard", "Error fetching stats", e)
+            AdminStats(0, 0)
+        }
     }
 
     private fun AppointmentRow.toAppointment(doctorNames: Map<String, String>): Appointment {

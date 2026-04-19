@@ -28,6 +28,10 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material3.*
@@ -67,7 +71,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import io.github.jan.supabase.compose.auth.composable.NativeSignInResult
 import io.github.jan.supabase.compose.auth.composable.rememberSignInWithGoogle
@@ -281,6 +290,7 @@ fun MainNavigation(role: String, name: String, onLogout: () -> Unit) {
 
     val adminTabs = listOf(
         TabItem("Home", Icons.Filled.Home, Icons.Outlined.Home),
+        TabItem("Appointments", Icons.Default.Event, Icons.Outlined.Event),
         TabItem("Doctors", Icons.Filled.Person, Icons.Outlined.Person),
         TabItem("Schedule", Icons.Default.DateRange, Icons.Outlined.DateRange)
     )
@@ -366,8 +376,9 @@ fun MainNavigation(role: String, name: String, onLogout: () -> Unit) {
             if (role == "admin") {
                 when (selectedTab) {
                     0 -> AdminDashboard()
-                    1 -> DoctorManagementScreen()
-                    2 -> AdminScheduleScreen()
+                    1 -> AdminAppointmentsScreen()
+                    2 -> DoctorManagementScreen()
+                    3 -> AdminScheduleScreen()
                 }
             } else {
                 when (selectedTab) {
@@ -1500,6 +1511,232 @@ fun AdminDashboard() {
                             }
                         }
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminAppointmentsScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val appointmentRepository = remember { SupabaseAppointmentRepository() }
+    
+    val dateList = remember {
+        (0..7).map { LocalDate.now().plusDays(it.toLong()) }
+    }
+    var selectedDate by remember { mutableStateOf(dateList.first()) }
+    var appointments by remember { mutableStateOf<List<Appointment>>(emptyList()) }
+    var doctors by remember { mutableStateOf<List<Doctor>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    fun refreshData() {
+        scope.launch {
+            isLoading = true
+            try {
+                doctors = appointmentRepository.getAllDoctors()
+                appointments = appointmentRepository.getAppointmentsByDate(selectedDate.toString())
+            } catch (e: Exception) {
+                android.util.Log.e("AdminAppointments", "Error loading data", e)
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+
+    LaunchedEffect(selectedDate) {
+        refreshData()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            "Manage Appointments",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Primary
+        )
+
+        // Date Selector
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 8.dp)
+        ) {
+            items(dateList) { date ->
+                val isSelected = date == selectedDate
+                Surface(
+                    onClick = { selectedDate = date },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isSelected) Primary else Color.White,
+                    border = BorderStroke(1.dp, if (isSelected) Primary else Color.LightGray.copy(alpha = 0.5f)),
+                    modifier = Modifier.width(80.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            date.dayOfWeek.name.take(3),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) Color.White else Color.Gray
+                        )
+                        Text(
+                            date.dayOfMonth.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) Color.White else OnBackground
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isLoading) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = Primary)
+            }
+        } else if (doctors.isEmpty()) {
+            EmptyStateCard("No Doctors", "Add doctors first to see appointments.")
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(doctors) { doctor ->
+                    DoctorAppointmentGroup(
+                        doctor = doctor,
+                        appointments = appointments.filter { it.doctorId == doctor.id },
+                        onStatusUpdate = { appointmentId, status ->
+                            scope.launch {
+                                try {
+                                    appointmentRepository.updateAppointmentStatus(appointmentId, status)
+                                    refreshData()
+                                    android.widget.Toast.makeText(context, "Appointment $status", android.widget.Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    android.widget.Toast.makeText(context, "Update failed", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DoctorAppointmentGroup(
+    doctor: Doctor,
+    appointments: List<Appointment>,
+    onStatusUpdate: (String, String) -> Unit
+) {
+    val appointmentsBySlot = appointments.groupBy { it.time }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            doctor.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold,
+            color = Primary
+        )
+
+        if (appointments.isEmpty()) {
+            Text(
+                "No appointments scheduled for this day.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.Gray,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        } else {
+            appointmentsBySlot.forEach { (slot, slotAppointments) ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    shadowElevation = 1.dp,
+                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.2f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(slot, fontWeight = FontWeight.Bold, color = OnBackground)
+                            Surface(
+                                color = PrimaryFixed,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    "${slotAppointments.size} Patients",
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        slotAppointments.forEachIndexed { index, appt ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "Patient ID: ${appt.patientId.takeLast(6)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Surface(
+                                        color = when(appt.status) {
+                                            "confirmed" -> Color(0xFFE8F5E9)
+                                            "rejected" -> Color(0xFFFFEBEE)
+                                            else -> Color(0xFFFFF3E0)
+                                        },
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            appt.status.uppercase(),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = when(appt.status) {
+                                                "confirmed" -> Color(0xFF2E7D32)
+                                                "rejected" -> Color(0xFFC62828)
+                                                else -> Color(0xFFEF6C00)
+                                            },
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                
+                                if (appt.status == "pending") {
+                                    Row {
+                                        IconButton(onClick = { onStatusUpdate(appt.id, "confirmed") }) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = "Confirm", tint = Color(0xFF2E7D32))
+                                        }
+                                        IconButton(onClick = { onStatusUpdate(appt.id, "rejected") }) {
+                                            Icon(Icons.Default.Cancel, contentDescription = "Reject", tint = Color(0xFFC62828))
+                                        }
+                                    }
+                                }
+                            }
+                            if (index < slotAppointments.size - 1) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    color = Color.LightGray.copy(alpha = 0.3f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
