@@ -1,6 +1,5 @@
 *.iml
 .gradle
-/local.properties
 /.idea/caches
 /.idea/libraries
 /.idea/modules.xml
@@ -14,3 +13,7 @@
 .cxx
 local.properties
 *.jar
+/app/google-services.json
+/app/release/
+/app/debug/
+v1.jks
